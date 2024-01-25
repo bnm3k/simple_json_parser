@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
 use core::fmt;
+use eyre::{Ok, OptionExt};
+use std::collections::HashMap;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Token {
@@ -175,9 +177,135 @@ impl Lexer {
     }
 }
 
-fn main() {
+#[derive(Debug)]
+enum JSONValue {
+    Null,
+    Bool(bool),
+    Str(String),
+    Num(f64),
+    Array(Vec<JSONValue>),
+    Dict(HashMap<String, JSONValue>),
+}
+
+fn parse_array<'a, 'b>(
+    tokens: &'a [Token],
+    buf: &'b [u8],
+) -> eyre::Result<(JSONValue, &'a [Token])> {
+    let mut entries = Vec::new();
+    // handle empty array
+    let t = *tokens.get(0).ok_or_eyre("Expected value")?;
+    if t == Token::RightBracket {
+        return Ok((JSONValue::Array(entries), &tokens[1..]));
+    }
+    // handle non-empty
+    let mut tokens = tokens;
+    loop {
+        let (val, rest) = parse_value(tokens, buf)?;
+        entries.push(val);
+        tokens = rest;
+        let token = *tokens.get(0).ok_or_eyre("Expected value")?;
+        match token {
+            Token::RightBracket => {
+                return Ok((JSONValue::Array(entries), &tokens[1..]));
+            }
+            Token::Comma => {
+                tokens = &tokens[1..];
+                continue;
+            }
+            _ => eyre::bail!("Unexpected value for array"),
+        }
+    }
+}
+
+fn parse_dict_entry<'a, 'b>(
+    tokens: &'a [Token],
+    buf: &'b [u8],
+) -> eyre::Result<((String, JSONValue), &'a [Token])> {
+    if tokens.len() < 3 {
+        eyre::bail!("Object entry incomplete")
+    }
+    // get key
+    let key: String;
+    if let Token::StringVal(i, j) = tokens[0] {
+        key = String::from_utf8((&buf[i..j]).to_vec())?;
+    } else {
+        eyre::bail!("Expected string for key")
+    }
+    // handle colon
+    if tokens[1] != Token::Colon {
+        eyre::bail!("Expected colon")
+    }
+    // get val
+    let (val, rest) = parse_value(&tokens[2..], buf)?;
+    return Ok(((key, val), rest));
+}
+
+fn parse_dict<'a, 'b>(
+    tokens: &'a [Token],
+    buf: &'b [u8],
+) -> eyre::Result<(JSONValue, &'a [Token])> {
+    let mut entries = HashMap::new();
+    // handle empty dict
+    let t = *tokens.get(0).ok_or_eyre("Expected value")?;
+    if t == Token::RightBracket {
+        return Ok((JSONValue::Dict(entries), &tokens[1..]));
+    }
+    // handle rest
+    let mut tokens = tokens;
+    loop {
+        let ((key, val), rest) = parse_dict_entry(tokens, buf)?;
+        entries.insert(key, val);
+        tokens = rest;
+        let token = *tokens.get(0).ok_or_eyre("Expected value")?;
+        match token {
+            Token::RightBrace => {
+                return Ok((JSONValue::Dict(entries), &tokens[1..]));
+            }
+            Token::Comma => {
+                tokens = &tokens[1..];
+                continue;
+            }
+            _ => eyre::bail!("Unexpected value for dict"),
+        }
+    }
+}
+
+fn parse_value<'a, 'b>(
+    tokens: &'a [Token],
+    buf: &'b [u8],
+) -> eyre::Result<(JSONValue, &'a [Token])> {
+    let t = tokens.get(0).ok_or_eyre("Expected value")?;
+    let rest = &tokens[1..];
+    let v = match t {
+        Token::BoolVal(b) => JSONValue::Bool(*b),
+        Token::NullVal => JSONValue::Null,
+        Token::NumVal(n) => JSONValue::Num(*n),
+        Token::StringVal(i, j) => {
+            let s = String::from_utf8((&buf[*i..*j]).to_vec())?;
+            JSONValue::Str(s)
+        }
+        Token::LeftBrace => return parse_dict(rest, buf),
+        Token::LeftBracket => return parse_array(rest, buf),
+        _ => {
+            println!("bozo tok: {:?}", t);
+            todo!("parse gen")
+        }
+    };
+    Ok((v, rest))
+}
+
+fn parse(json: &[u8]) -> eyre::Result<JSONValue> {
     let lexer = Lexer::new();
-    let json_val = " 1.123 -0.123 \"hello\" null true false { [ : , ] }".as_bytes();
-    let tokens = lexer.lex(json_val);
-    println!("{:?}", tokens);
+    let tokens = lexer.lex(json)?;
+    let (json_val, rest) = parse_value(&tokens, json)?;
+    if rest.len() > 0 {
+        eyre::bail!("Invalid JSON contains extra content")
+    };
+    return Ok(json_val);
+}
+
+fn main() {
+    let json_val = "{\"foo\":[1,2,3]}".as_bytes();
+    let parsed = parse(json_val).unwrap();
+    println!("{:?}", parsed);
 }
