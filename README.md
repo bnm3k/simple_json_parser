@@ -32,7 +32,25 @@ eBNF for JSON
 
 ## Usage
 
+```rust
+use json_parser::parse;
+
+fn main() {
+    let json_val = "{\"foo\":[1,2,3]}".as_bytes();
+    let parsed = parse(json_val).unwrap();
+    println!("{:?}", parsed);
+}
+```
+
+This outputs:
+
+```
+Dict({"foo": Array([Num(1.0), Num(2.0), Num(3.0)])})
+```
+
 ## TODO
 
 - Check validity of strings (should not have '"' or '\' or control characters)
 - Handle exponents in numbers correctly
+- Add tests from the
+  [JSON Parsing Test Suite](https://github.com/nst/JSONTestSuite/tree/master)
