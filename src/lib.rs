@@ -178,7 +178,7 @@ impl Lexer {
 }
 
 #[derive(Debug)]
-enum JSONValue {
+pub enum JSONValue {
     Null,
     Bool(bool),
     Str(String),
@@ -294,7 +294,7 @@ fn parse_value<'a, 'b>(
     Ok((v, rest))
 }
 
-fn parse(json: &[u8]) -> eyre::Result<JSONValue> {
+pub fn parse(json: &[u8]) -> eyre::Result<JSONValue> {
     let lexer = Lexer::new();
     let tokens = lexer.lex(json)?;
     let (json_val, rest) = parse_value(&tokens, json)?;
@@ -302,10 +302,4 @@ fn parse(json: &[u8]) -> eyre::Result<JSONValue> {
         eyre::bail!("Invalid JSON contains extra content")
     };
     return Ok(json_val);
-}
-
-fn main() {
-    let json_val = "{\"foo\":[1,2,3]}".as_bytes();
-    let parsed = parse(json_val).unwrap();
-    println!("{:?}", parsed);
 }
