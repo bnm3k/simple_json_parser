@@ -1,5 +1,7 @@
 # JSON Parser
 
+A simple JSON parser based on [ECMA-404](https://www.json.org/json-en.html).
+
 ## JSON format
 
 eBNF for JSON
@@ -15,7 +17,7 @@ eBNF for JSON
 <exponent> ::= ("e" | "E" ) ("-" | "+")? [0-9]+
 
 <string> ::= "\"" <char>* "\""
-<char> ::= [a-z] | [A-Z] | [0-9]
+<char> ::= Any codepoint except " or \ or control characters.
 
 <boolean> ::= ("true" | "false" )
 
@@ -27,3 +29,10 @@ eBNF for JSON
 
 <array> ::= "[" (<value> ("," <value>)*)? "]"
 ```
+
+## Usage
+
+## TODO
+
+- Check validity of strings (should not have '"' or '\' or control characters)
+- Handle exponents in numbers correctly
